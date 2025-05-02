@@ -1,4 +1,4 @@
-// netlify/functions/verify-code.js (Using require and manual config)
+// netlify/functions/verify-code.js (Using require, manual config, and method logging)
 console.log("--- verify-code.js: File start (using require) ---");
 
 // Use require instead of import
@@ -13,8 +13,12 @@ const CODES_KEY = "valid_codes_list";
 module.exports.handler = async (req, context) => {
     console.log("--- verify-code.js: Function handler invoked ---");
 
-    if (req.method !== "POST") {
-        console.log("--- verify-code.js: Incorrect method (not POST) ---");
+    // --- DEBUG LOG ADDED HERE ---
+    console.log("--- verify-code.js: Received req.method:", req.method);
+    // --- END DEBUG LOG ---
+
+    if (req.method !== "POST") { // Check if the received method is not POST
+        console.log("--- verify-code.js: Incorrect method detected (not POST) ---");
         return { // Return standard response object
             statusCode: 405,
             body: JSON.stringify({ success: false, message: "Method Not Allowed" }),
@@ -22,16 +26,21 @@ module.exports.handler = async (req, context) => {
         };
     }
 
+    // If we reach here, method should be POST
+    console.log("--- verify-code.js: Method check passed (POST detected) ---");
+
     let requestBody;
     try {
-        // Netlify Functions using module.exports provide body directly if Content-Type is correct
-        // For safety, check if it needs parsing (might depend on exact Netlify runner)
+        // Check if body needs parsing (might depend on Netlify runner)
         if (typeof req.body === 'string') {
+             console.log("--- verify-code.js: req.body is string, attempting JSON.parse ---");
              requestBody = JSON.parse(req.body);
         } else {
-             requestBody = req.body; // Assume already parsed if not a string
+             console.log("--- verify-code.js: req.body is not string, assuming already parsed ---");
+             requestBody = req.body; // Assume already parsed
         }
         if (!requestBody) throw new Error("Request body is missing or empty.");
+         console.log("--- verify-code.js: Request body parsed/accessed ---");
 
     } catch (error) {
         console.error("--- verify-code.js: Invalid JSON body ---", error);
@@ -52,6 +61,7 @@ module.exports.handler = async (req, context) => {
             headers: { "Content-Type": "application/json" },
         };
     }
+     console.log("--- verify-code.js: Code format check passed ---");
 
     try {
         console.log("--- verify-code.js: Entering try block ---");
@@ -68,7 +78,7 @@ module.exports.handler = async (req, context) => {
               headers: { "Content-Type": "application/json" },
           };
         }
-        console.log("--- verify-code.js: Environment variables found ---");
+        console.log("--- verify-code.js: Environment variables for blobs found ---");
 
         // Pass options to getStore
         const store = getStore({ name: STORE_NAME, siteID, token });
@@ -82,7 +92,7 @@ module.exports.handler = async (req, context) => {
             try {
               currentCodes = JSON.parse(currentCodesJSON);
               if (!Array.isArray(currentCodes)) currentCodes = []; // Handle non-array data
-              console.log("--- verify-code.js: Parsed existing codes ---", currentCodes.length);
+              console.log("--- verify-code.js: Parsed existing codes, count:", currentCodes.length);
             } catch (parseError){
               console.error("--- verify-code.js: Failed to parse codes from blob store ---", parseError);
               currentCodes = []; // Reset if parsing fails
@@ -99,14 +109,14 @@ module.exports.handler = async (req, context) => {
             await store.setJSON(CODES_KEY, currentCodes); // Save updated list
             console.log(`--- verify-code.js: Code ${submittedCode} verified and removed. ---`);
 
-            return { // Return standard response object
+            return { // Return standard success response object
                 statusCode: 200,
                 body: JSON.stringify({ success: true, message: "Verification Successful!" }),
                 headers: { "Content-Type": "application/json" },
             };
         } else {
             console.log(`--- verify-code.js: Code ${submittedCode} not found or already used. ---`);
-            return { // Return standard response object
+            return { // Return standard failure response object
                 statusCode: 400, // Bad Request (invalid code)
                 body: JSON.stringify({ success: false, message: "Invalid or expired verification code." }),
                 headers: { "Content-Type": "application/json" },
@@ -114,14 +124,12 @@ module.exports.handler = async (req, context) => {
         }
     } catch (error) {
         console.error("--- verify-code.js: Caught error in try block ---", error);
-        return { // Return standard response object
+        return { // Return standard error response object
             statusCode: 500, // Internal Server Error
             body: JSON.stringify({ success: false, message: error.message || "Server error during verification." }),
             headers: { "Content-Type": "application/json" },
         };
     }
-};
-
-// Removed export const config
+}; // End of module.exports.handler
 
 console.log("--- verify-code.js: File end (using require) ---");
