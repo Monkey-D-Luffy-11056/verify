@@ -1,0 +1,19 @@
+{
+  "name": "Verify",
+  "version": "1.0.0",
+  "description": "Netlify functions for mobile app verification",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "netlify",
+    "serverless",
+    "verification"
+  ],
+  "author": "Monkey-D-Luffy-11056",
+  "license": "ISC",
+  "dependencies": {
+    "@netlify/blobs": "^6.4.0" # Or latest version - Check npm for current
+  }
+}

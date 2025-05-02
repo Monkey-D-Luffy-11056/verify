@@ -1,0 +1,10 @@
+[build]
+  command = "npm install" # Ensure dependencies are installed by Netlify
+  publish = "public"      # Serve files from the 'public' directory
+
+[functions]
+  directory = "netlify/functions" # Location of serverless functions
+  node_bundler = "esbuild"        # Use esbuild for faster bundling
+
+# Environment variables (like ADD_CODE_SECRET) should be set in the Netlify UI
+# for security, not committed here.
