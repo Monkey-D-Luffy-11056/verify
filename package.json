@@ -14,6 +14,7 @@
   "author": "Monkey-D-Luffy-11056",
   "license": "ISC",
   "dependencies": {
-    "@netlify/blobs": "^6.4.0" # Or latest version - Check npm for current
+    "@netlify/blobs": "^6.4.0"
   }
 }
+
