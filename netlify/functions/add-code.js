@@ -1,4 +1,4 @@
-// netlify/functions/add-code.js (Using require and manual config)
+// netlify/functions/add-code.js (Corrected handler signature, using require and manual config)
 console.log("--- add-code.js: File start (using require) ---");
 
 // Use require
@@ -11,10 +11,11 @@ const CODES_KEY = "valid_codes_list";
 // Get ADD_CODE_SECRET from environment variables set in Netlify UI
 const EXPECTED_SECRET = process.env.ADD_CODE_SECRET;
 
-// Use module.exports.handler
-module.exports.handler = async (req, context) => {
+// Use module.exports.handler with event, context
+module.exports.handler = async (event, context) => {
     console.log("--- add-code.js: Function handler invoked ---");
 
+    // Check if the required ADD_CODE_SECRET is configured
     if (!EXPECTED_SECRET) {
          console.error("ADD_CODE_SECRET environment variable is not set!");
          return {
@@ -24,34 +25,43 @@ module.exports.handler = async (req, context) => {
          };
     }
 
-    if (req.method !== "POST") {
-        console.log("--- add-code.js: Incorrect method (not POST) ---");
+    // Check HTTP Method using event.httpMethod
+    console.log("--- add-code.js: Received event.httpMethod:", event.httpMethod);
+    if (event.httpMethod !== "POST") {
+        console.log("--- add-code.js: Incorrect method detected (not POST) ---");
         return {
             statusCode: 405,
             body: JSON.stringify({ success: false, message: "Method Not Allowed" }),
             headers: { "Content-Type": "application/json", Allow: "POST" },
         };
     }
+    console.log("--- add-code.js: Method check passed (POST detected) ---");
 
+    // Parse request body from event.body
     let requestBody;
     try {
-       // Assume body might be string or object depending on Netlify runner
-       if (typeof req.body === 'string') {
-           requestBody = JSON.parse(req.body);
+       // Body is often a string in this signature, needs parsing
+       if (typeof event.body === 'string') {
+           console.log("--- add-code.js: event.body is string, attempting JSON.parse ---");
+           requestBody = JSON.parse(event.body);
+       } else if (typeof event.body === 'object' && event.body !== null) {
+           console.log("--- add-code.js: event.body is object, using directly ---");
+           requestBody = event.body; // Assume already parsed
        } else {
-           requestBody = req.body;
+            throw new Error("Event body is missing, empty, or not a string/object.");
        }
-       if (!requestBody) throw new Error("Request body is missing or empty.");
+       console.log("--- add-code.js: Request body parsed/accessed ---");
 
     } catch (error) {
        console.error("--- add-code.js: Invalid JSON body ---", error);
         return {
             statusCode: 400,
-            body: JSON.stringify({ success: false, message: "Invalid JSON body" }),
+            body: JSON.stringify({ success: false, message: "Invalid JSON body: " + error.message }),
             headers: { "Content-Type": "application/json" },
         };
     }
 
+    // Extract code and secret from parsed body
     const { code: newCode, secret: providedSecret } = requestBody;
 
     // --- Security Check ---
@@ -63,8 +73,10 @@ module.exports.handler = async (req, context) => {
             headers: { "Content-Type": "application/json" },
         };
     }
+    console.log("--- add-code.js: Authorization successful ---");
     // --- ---
 
+    // Validate the new code format
     if (!newCode || typeof newCode !== 'string' || !/^\d{8}$/.test(newCode)) {
         console.log("--- add-code.js: Invalid code format ---", newCode);
         return {
@@ -73,7 +85,9 @@ module.exports.handler = async (req, context) => {
             headers: { "Content-Type": "application/json" },
         };
     }
+     console.log("--- add-code.js: Code format check passed ---");
 
+    // Main logic to add the code
     try {
         console.log("--- add-code.js: Entering try block ---");
 
@@ -89,7 +103,7 @@ module.exports.handler = async (req, context) => {
               headers: { "Content-Type": "application/json" },
           };
         }
-         console.log("--- add-code.js: Environment variables found ---");
+        console.log("--- add-code.js: Environment variables for blobs found ---");
 
         // Pass options to getStore
         const store = getStore({ name: STORE_NAME, siteID, token });
@@ -103,29 +117,30 @@ module.exports.handler = async (req, context) => {
             try {
               currentCodes = JSON.parse(currentCodesJSON);
               if (!Array.isArray(currentCodes)) currentCodes = [];
-              console.log("--- add-code.js: Parsed existing codes ---", currentCodes.length);
+              console.log("--- add-code.js: Parsed existing codes, count:", currentCodes.length);
             } catch(parseError) {
               console.error("--- add-code.js: Failed to parse codes from blob store ---", parseError);
-              currentCodes = [];
+              currentCodes = []; // Reset if parsing fails
             }
         } else {
             console.log("--- add-code.js: No existing codes found in store ---");
         }
 
+        // Check if code already exists using a Set for efficiency
         const codeSet = new Set(currentCodes);
         if (!codeSet.has(newCode)) {
-            currentCodes.push(newCode);
-            await store.setJSON(CODES_KEY, currentCodes);
+            currentCodes.push(newCode); // Add the new code
+            await store.setJSON(CODES_KEY, currentCodes); // Save the updated list
             console.log(`--- add-code.js: Code ${newCode} added. ---`);
 
-            return {
+            return { // Return success
                 statusCode: 200,
                 body: JSON.stringify({ success: true, message: `Code ${newCode} added.` }),
                 headers: { "Content-Type": "application/json" },
             };
         } else {
              console.log(`--- add-code.js: Code ${newCode} already exists. ---`);
-             return {
+             return { // Return conflict error
                  statusCode: 409, // Conflict
                  body: JSON.stringify({ success: false, message: `Code ${newCode} already exists.` }),
                  headers: { "Content-Type": "application/json" },
@@ -134,14 +149,12 @@ module.exports.handler = async (req, context) => {
 
     } catch (error) {
         console.error("--- add-code.js: Caught error in try block ---", error);
-        return {
+        return { // Return generic server error
             statusCode: 500,
             body: JSON.stringify({ success: false, message: error.message || "Server error while adding code." }),
             headers: { "Content-Type": "application/json" },
         };
     }
-};
-
-// Removed export const config
+}; // End of module.exports.handler
 
 console.log("--- add-code.js: File end (using require) ---");
